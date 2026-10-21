@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}{{ key.name if key else 'Новый ключ' }} · ES Query Service{% endblock %}
+{% block content %}
+{% include "admin/_nav.html" %}
+<div class="narrow">
+<h1>{% if key %}Ключ «{{ key.name }}»{% else %}Новый ключ{% endif %} <small>кластер <a href="/admin/clusters/{{ cluster.id }}">{{ cluster.name }}</a></small></h1>
+{% include "admin/_check_result.html" %}
+<form method="post" action="{{ '/admin/clusters/%d/keys/%d' % (cluster.id, key.id) if key else '/admin/clusters/%d/keys' % cluster.id }}" class="form card" autocomplete="off">
+  <label>Название ключа <input name="name" value="{{ form.name }}" required maxlength="100" placeholder="Например: reader-logs"></label>
+  <label>API-ключ
+    <input name="api_key" type="password" autocomplete="new-password"
+           placeholder="{{ 'сохранён — оставьте пустым, чтобы не менять' if key and key.api_key else 'пусто — без авторизации' }}">
+  </label>
+  <div class="hint">Значение <i>encoded</i> из Kibana (Stack Management → API keys) или пара <code>id:api_key</code>. Сохранённый ключ на странице не показывается.</div>
+  {% if key and key.api_key %}
+    <label class="check"><input type="checkbox" name="no_key"> Подключаться без API-ключа</label>
+  {% endif %}
+
+  <h2 class="mt">Роли с этим ключом</h2>
+  {% for r in roles %}
+    <label class="check"><input type="checkbox" name="role_ids" value="{{ r.id }}" {{ 'checked' if r.id in form.role_ids }}> {{ r.name }}{% if r.description %} <span class="muted">— {{ r.description }}</span>{% endif %}</label>
+  {% else %}
+    <p class="muted">Ролей пока нет — <a href="/admin/roles/new">создайте роль</a>.</p>
+  {% endfor %}
+
+  <div class="buttons">
+    <button class="btn btn-primary" name="action" value="save">Сохранить</button>
+    <button class="btn" name="action" value="test">Проверить подключение</button>
+    {% if allow_nocheck %}<button class="btn btn-danger" name="action" value="save_nocheck">Сохранить без проверки</button>{% endif %}
+    <a class="btn btn-link" href="/admin/clusters/{{ cluster.id }}">Отмена</a>
+  </div>
+</form>
+</div>
+{% endblock %}

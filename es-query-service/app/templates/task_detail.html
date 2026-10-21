@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+{% from "_macros.html" import mode_label, delivery, run_row, run_head, kind_badge, complexity_badge, level_class %}
+{% block title %}{{ task.name }} · ES Query Service{% endblock %}
+{% block content %}
+{% if msg == 'saved' %}<div class="alert ok">Изменения сохранены</div>{% endif %}
+{% if msg == 'hook' %}<div class="alert ok">Выдан новый адрес вебхука — старый больше не работает</div>{% endif %}
+{% if msg == 'hook_off' %}<div class="alert ok">Вебхук отключён</div>{% endif %}
+{% if msg == 'past' %}<div class="alert err">Время отложенного запуска уже прошло — укажите новое в редактировании</div>{% endif %}
+
+<div class="title-row">
+  <h1>{{ task.name }} {{ kind_badge(kind) }}</h1>
+  <div class="actions">
+    <form method="post" action="/tasks/{{ task.id }}/run"><button class="btn btn-primary">▶ Выполнить сейчас</button></form>
+    <form method="post" action="/tasks/{{ task.id }}/download"><button class="btn">⬇ Выполнить и скачать</button></form>
+    {% if task.mode != MODE_NOW %}
+    <form method="post" action="/tasks/{{ task.id }}/toggle"><button class="btn">{{ '⏸ Приостановить' if task.enabled else '⏵ Включить' }}</button></form>
+    {% endif %}
+    <a class="btn" href="/tasks/{{ task.id }}/edit">Изменить</a>
+    <a class="btn" href="/tasks/new?clone={{ task.id }}">Копировать</a>
+    <form method="post" action="/tasks/{{ task.id }}/delete" onsubmit="return confirm('Удалить задачу вместе с историей и сохранёнными результатами?')"><button class="btn btn-danger">Удалить</button></form>
+  </div>
+</div>
+
+<div class="grid2">
+  <section class="card">
+    <h2>Запрос</h2>
+    <p><code>{{ task.method }} {{ task.key.cluster.url if task.key else '' }}{{ task.path }}</code></p>
+    {% if task.body %}<pre class="code">{{ task.body }}</pre>{% else %}<p class="muted">Без тела</p>{% endif %}
+  </section>
+  <section class="card">
+    <h2>Параметры</h2>
+    <dl>
+      <dt>Кластер / ключ</dt><dd>{% if task.key %}{% if user.is_admin %}<a href="/admin/clusters/{{ task.key.cluster_id }}">{{ task.key.cluster.name }}</a>{% else %}{{ task.key.cluster.name }}{% endif %} / {{ task.key.name }}{% else %}<span class="err-text">не задан</span>{% endif %}</dd>
+      <dt>Автор</dt><dd>{{ task.owner.title if task.owner else '—' }}{% if task.mode != MODE_NOW %} <span class="hint">запуски по расписанию идут от его имени</span>{% endif %}</dd>
+      <dt>Режим</dt><dd>{{ mode_label(task) }}{% if task.mode != MODE_NOW %} — {% if task.enabled %}<span class="badge ok">активна</span>{% elif task.mode == MODE_ONCE %}<span class="badge">выполнена</span>{% else %}<span class="badge">пауза</span>{% endif %}{% endif %}</dd>
+      <dt>Следующий запуск</dt><dd>{{ next_run | dt }}</dd>
+      <dt>Доставка</dt><dd>{{ delivery(task) }}</dd>
+      {% if task.webhook_url %}<dt>Webhook</dt><dd><code>{{ task.webhook_url }}</code></dd>{% endif %}
+      <dt>Создана</dt><dd>{{ task.created_at | dt }}</dd>
+    </dl>
+  </section>
+</div>
+
+<section class="card" id="hook">
+  <div class="title-row">
+    <h2>Внешний вебхук</h2>
+    <div class="actions">
+      {% if hook_url %}
+      <form method="post" action="/tasks/{{ task.id }}/hook/rotate" onsubmit="return confirm('Выдать новый адрес? Старый перестанет работать.')"><button class="btn btn-sm">Новый адрес</button></form>
+      <form method="post" action="/tasks/{{ task.id }}/hook/disable" onsubmit="return confirm('Отключить запуск по вебхуку?')"><button class="btn btn-sm btn-danger">Отключить</button></form>
+      {% else %}
+      <form method="post" action="/tasks/{{ task.id }}/hook/rotate"><button class="btn btn-sm btn-primary">Включить</button></form>
+      {% endif %}
+    </div>
+  </div>
+  {% if hook_url %}
+    <p>POST-запрос на этот адрес запускает задачу. Адрес секретный — передавайте его только системе, которая будет вызывать задачу.</p>
+    <div class="row">
+      <input id="hook-url" value="{{ hook_url }}" readonly class="grow mono">
+      <button type="button" class="btn btn-sm" data-copy="#hook-url">Копировать</button>
+    </div>
+    <dl class="mt">
+      <dt>Разрешённые адреса</dt><dd>{% if task.hook_allowed_ips %}{% for net in task.hook_allowed_ips.split() %}<code class="chip">{{ net }}</code>{% endfor %}{% else %}<span class="muted">любые</span>{% endif %}</dd>
+      <dt>Запуск от имени</dt><dd>{{ task.owner.title if task.owner else '—' }} <span class="hint">(автор задачи; нужен доступ к её ключу)</span></dd>
+      <dt>Лимит</dt><dd>{{ hook_limit }} вызовов в минуту
+        {%- if not task.hook_rate_limit %} <span class="hint">(максимум)</span>
+        {%- elif task.hook_rate_limit > hook_limit %} <span class="hint">(в задаче указано {{ task.hook_rate_limit }}, но максимум сейчас {{ hook_limit }})</span>
+        {%- endif %}</dd>
+    </dl>
+    <details class="mt">
+      <summary>Примеры вызова</summary>
+      <pre class="code mt"># Запустить и сразу получить номер запуска (ответ 202)
+curl -X POST {{ hook_url }}
+
+# Дождаться выполнения и получить ответ Elasticsearch
+curl -X POST "{{ hook_url }}?wait=1&amp;timeout=60"
+
+# Статус запуска и сохранённый результат
+curl {{ hook_url }}/runs/&lt;run_id&gt;
+curl {{ hook_url }}/runs/&lt;run_id&gt;/result</pre>
+      <p class="hint">Ответ на запуск: <code>run_id</code>, <code>status</code>, <code>status_url</code> и <code>result_url</code>, когда результат сохранён. С <code>?wait=1</code> при ошибке Elasticsearch возвращается код 502 с текстом ошибки. Результат доставляется по настройкам задачи (хранение, отправка на адрес).</p>
+    </details>
+  {% else %}
+    <p class="muted">Выключен. Включите, чтобы внешние системы (мониторинг, CI, скрипты) могли запускать задачу POST-запросом.</p>
+  {% endif %}
+</section>
+
+{% if kind == 'search' %}
+<div class="grid2" id="profile">
+  <section class="card">
+    <div class="title-row">
+      <h2>Профиль запроса</h2>
+      <div class="actions">
+        {% if profile and profile.status == 'done' %}<a class="btn btn-sm" href="/tasks/{{ task.id }}/profile/raw">⬇ Полный профиль</a>{% endif %}
+        {% if not profile or profile.status in ('done', 'error') %}
+        <form method="post" action="/tasks/{{ task.id }}/profile"><button class="btn btn-sm">{{ 'Профилировать заново' if profile else 'Профилировать' }}</button></form>
+        {% endif %}
+      </div>
+    </div>
+    {% if not profile %}
+      <p class="muted">Профиль ещё не построен. Он строится один раз после сохранения или первого запуска запроса.</p>
+    {% elif profile.status == 'running' %}
+      <p><span class="badge run">профилирование…</span> Запрос выполняется с Profile API, страница обновится автоматически.</p>
+    {% elif profile.status == 'unsupported' %}
+      <p class="muted">Profile API поддерживается только для <code>_search</code> и <code>_msearch</code>. Скорость считается по запускам.</p>
+    {% elif profile.status == 'error' %}
+      <div class="alert err"><pre class="wrap">{{ profile.error }}</pre></div>
+      <p class="hint">Профилирование повторится при следующем успешном запуске или по кнопке.</p>
+    {% else %}
+      <div class="metrics">
+        <div class="metric"><div class="metric-label">Сложность для кластера</div>
+          <div class="metric-value"><span class="badge {{ level_class(metrics.complexity_level) }}">{{ metrics.complexity_level }}</span> {{ metrics.complexity_score }}<span class="muted">/100</span></div></div>
+        <div class="metric"><div class="metric-label">Скорость (took)</div>
+          <div class="metric-value"><span class="badge {{ level_class(metrics.speed_level) }}">{{ metrics.speed_level or '—' }}</span> {{ metrics.took_ms }} мс</div></div>
+        <div class="metric"><div class="metric-label">Работа шардов, всего</div>
+          <div class="metric-value">{{ metrics.cluster_ms | round(1) }} мс</div></div>
+        <div class="metric"><div class="metric-label">Шардов</div>
+          <div class="metric-value">{{ metrics.shards_total }}{% if metrics.shards_failed %} <span class="err-text">({{ metrics.shards_failed }} с ошибкой)</span>{% endif %}</div></div>
+      </div>
+      <dl class="mt">
+        <dt>Найдено документов</dt><dd>{{ metrics.hits_total }}</dd>
+        <dt>Дерево запроса</dt><dd>{{ metrics.query_nodes }} узлов, глубина {{ metrics.query_depth }}</dd>
+        {% if metrics.agg_nodes %}<dt>Агрегации</dt><dd>{{ metrics.agg_nodes }}, вложенность {{ metrics.agg_depth }}</dd>{% endif %}
+        {% if metrics.slowest_shard %}<dt>Самый медленный шард</dt><dd><code>{{ metrics.slowest_shard.id }}</code> — {{ metrics.slowest_shard.ms }} мс</dd>{% endif %}
+        {% if metrics.lucene_types %}<dt>Lucene-запросы</dt><dd>{% for name, n in metrics.lucene_types %}<span class="chip">{{ name }}{% if n > 1 %} ×{{ n }}{% endif %}</span>{% endfor %}</dd>{% endif %}
+        <dt>Профиль построен</dt><dd>{{ profile.finished_at | dt }}</dd>
+      </dl>
+      <table class="mt compact">
+        <thead><tr><th>Фаза</th><th>Всего по шардам</th><th>Максимум на шард</th></tr></thead>
+        <tbody>{% for ph in metrics.phases %}<tr><td>{{ ph.name }}</td><td>{{ ph.total_ms }} мс</td><td>{{ ph.max_ms }} мс</td></tr>{% endfor %}</tbody>
+      </table>
+    {% endif %}
+  </section>
+
+  <section class="card">
+    {% if metrics %}
+      <h2>Что влияет на сложность</h2>
+      {% if metrics.factors %}<ul class="plain">{% for f in metrics.factors %}<li>{{ f }}</li>{% endfor %}</ul>
+      {% else %}<p class="muted">Ничего существенного — запрос лёгкий для кластера.</p>{% endif %}
+      {% if metrics.recommendations %}
+        <h2 class="mt">Рекомендации</h2>
+        <ul class="plain">{% for r in metrics.recommendations %}<li>{{ r }}</li>{% endfor %}</ul>
+      {% endif %}
+    {% endif %}
+    <h2 class="{{ 'mt' if metrics }}">Скорость по запускам</h2>
+    {% if speed.took or speed.duration %}
+      <table class="compact">
+        <thead><tr><th></th><th>Последний</th><th>Среднее</th><th>p95</th><th>Мин.</th><th>Макс.</th></tr></thead>
+        <tbody>
+          {% for label, st in [('took в ES', speed.took), ('Полное время', speed.duration)] if st %}
+          <tr><td>{{ label }}</td><td>{{ st.last }} мс</td><td>{{ st.avg }} мс</td><td>{{ st.p95 }} мс</td><td>{{ st.min }} мс</td><td>{{ st.max }} мс</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <p class="hint">По {{ speed.count }} последним успешным запускам. «Полное время» включает сеть и передачу ответа.</p>
+    {% else %}
+      <p class="muted">Успешных запусков ещё не было.</p>
+    {% endif %}
+  </section>
+</div>
+{% endif %}
+
+<h2>История запусков <span class="muted">({{ total_runs }}{% if total_runs > runs|length %}, показаны последние {{ runs|length }}{% endif %})</span></h2>
+{% if runs %}
+<div class="table-wrap">
+<table>
+  <thead>{{ run_head() }}</thead>
+  <tbody>{% for r in runs %}{{ run_row(r) }}{% endfor %}</tbody>
+</table>
+</div>
+{% else %}<p class="muted">Запусков ещё не было.</p>{% endif %}
+{% endblock %}
+{% block scripts %}{% if running or (profile and profile.status == 'running') %}<script>setTimeout(() => location.reload(), 3000);</script>{% endif %}{% endblock %}

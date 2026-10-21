@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Редактирование' if task else 'Новый запрос' }} · ES Query Service{% endblock %}
+{% block content %}
+<h1>{% if task %}Редактирование: {{ task.name }}{% else %}Новый запрос{% endif %}</h1>
+
+{% if errors %}
+<div class="alert err"><ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div>
+{% endif %}
+
+<form method="post" action="{{ '/tasks/%d' % task.id if task else '/tasks' }}" id="task-form" class="form">
+  <section class="card">
+    <h2>Запрос к Elasticsearch</h2>
+    {% if key_groups %}
+    <label class="w-auto">Кластер и ключ доступа
+      <select name="key_id" required>
+        {% for cluster_name, keys in key_groups.items() %}
+        <optgroup label="{{ cluster_name }}">
+          {% for k in keys %}<option value="{{ k.id }}" {{ 'selected' if form.key_id == k.id }}>{{ cluster_name }} / {{ k.name }}</option>{% endfor %}
+        </optgroup>
+        {% endfor %}
+      </select>
+    </label>
+    {% else %}
+    <div class="alert err">Нет доступных кластеров: вам не выдана роль с ключами доступа. Обратитесь к администратору.</div>
+    {% endif %}
+    <label>Название
+      <input name="name" value="{{ form.name }}" maxlength="200" placeholder="Например: Ошибки за сутки">
+    </label>
+    <div class="row">
+      <label class="w-auto">Метод
+        <select name="method">
+          {% for m in methods %}<option {{ 'selected' if form.method == m }}>{{ m }}</option>{% endfor %}
+        </select>
+      </label>
+      <label class="grow">Путь (индекс и эндпоинт)
+        <input name="path" value="{{ form.path }}" required placeholder="/logs-*/_search">
+      </label>
+    </div>
+    <div class="hint">Для поисковых запросов (<code>_search</code>, <code>_msearch</code>) после сохранения один раз строится профиль: скорость, сложность для кластера и рекомендации. При изменении запроса профиль строится заново.</div>
+    <div class="hint">Примеры: <code>/logs-*/_search</code>, <code>/my-index/_count</code>, <code>/_sql?format=json</code>, <code>/_msearch</code> (NDJSON), <code>/_cat/indices?format=json</code></div>
+    <label>Тело запроса (JSON)
+      <textarea name="body" id="body" rows="14" spellcheck="false" class="mono">{{ form.body }}</textarea>
+    </label>
+    <div class="row tools">
+      <button type="button" class="btn btn-sm" id="fmt-json">Форматировать JSON</button>
+      <span id="json-state" class="hint"></span>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Когда выполнить</h2>
+    <div class="radio-group">
+      <label class="radio"><input type="radio" name="mode" value="now" {{ 'checked' if form.mode == MODE_NOW }}> Сейчас</label>
+      <label class="radio"><input type="radio" name="mode" value="once" {{ 'checked' if form.mode == MODE_ONCE }}> Отложенно</label>
+      <label class="radio"><input type="radio" name="mode" value="cron" {{ 'checked' if form.mode == MODE_CRON }}> По расписанию</label>
+    </div>
+    <div data-mode="once">
+      <label class="w-auto">Дата и время запуска ({{ settings.timezone }})
+        <input type="datetime-local" name="run_at" value="{{ form.run_at }}">
+      </label>
+    </div>
+    <div data-mode="cron">
+      <label class="w-auto">Cron-выражение (минута час день месяц день_недели), часовой пояс {{ settings.timezone }}
+        <input name="cron" value="{{ form.cron }}" class="mono" placeholder="0 9 * * *">
+      </label>
+      <div class="hint">
+        Шаблоны:
+        <a href="#" data-cron="*/15 * * * *">каждые 15 мин</a> ·
+        <a href="#" data-cron="0 * * * *">каждый час</a> ·
+        <a href="#" data-cron="0 9 * * *">ежедневно в 9:00</a> ·
+        <a href="#" data-cron="0 9 * * mon-fri">по будням в 9:00</a> ·
+        <a href="#" data-cron="0 0 1 * *">1-го числа месяца</a>
+      </div>
+    </div>
+
+    <label class="check mt"><input type="checkbox" name="hook_enabled" data-toggle="hook" {{ 'checked' if form.hook_enabled }}> Также запускать по внешнему вебхуку</label>
+    <div data-section="hook" class="sub">
+      <div class="hint">После сохранения у задачи появится секретный адрес: POST-запрос на него запускает задачу. Адрес и примеры вызова — на странице задачи.</div>
+      <label>Разрешённые IP-адреса и подсети (необязательно)
+        <textarea name="hook_allowed_ips" rows="2" class="mono" placeholder="10.0.0.0/8, 192.168.1.15">{{ form.hook_allowed_ips }}</textarea>
+      </label>
+      <div class="hint">Пусто — вызов принимается с любого адреса (по секретному токену).</div>
+      <label class="w-auto">Лимит вызовов в минуту
+        <input type="number" name="hook_rate_limit" value="{{ form.hook_rate_limit }}" min="1"
+               max="{{ settings.hook_rate_limit_per_minute }}" class="num" placeholder="{{ settings.hook_rate_limit_per_minute }}">
+      </label>
+      <div class="hint">От 1 до {{ settings.hook_rate_limit_per_minute }} (максимум задаёт администратор). Пусто — максимум. Сверх лимита вызовы отклоняются с кодом 429.</div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Куда отправить результат</h2>
+    <label class="check"><input type="checkbox" name="webhook_enabled" data-toggle="webhook" {{ 'checked' if form.webhook_enabled }}> Отправить JSON на адрес (HTTP POST)</label>
+    <div data-section="webhook" class="sub">
+      <label>URL
+        <input name="webhook_url" value="{{ form.webhook_url }}" placeholder="https://example.com/hook">
+      </label>
+      <label>Дополнительные заголовки (по одному на строку)
+        <textarea name="webhook_headers" rows="3" class="mono" placeholder="Authorization: Bearer xxx">{{ form.webhook_headers }}</textarea>
+      </label>
+      <div class="hint">Отправляется только успешный ответ. При ошибке доставки — до {{ settings.webhook_retries }} попыток. В заголовках X-ES-Task-Id и X-ES-Run-Id передаются номера задачи и запуска.</div>
+    </div>
+
+    <label class="check"><input type="checkbox" name="store_enabled" data-toggle="store" {{ 'checked' if form.store_enabled }}> Сохранить результат в сервисе</label>
+    <div data-section="store" class="sub">
+      <div class="row">
+        <label class="w-auto">Хранить
+          <input type="number" name="ttl_value" value="{{ form.ttl_value }}" min="1" class="num">
+        </label>
+        <label class="w-auto">&nbsp;
+          <select name="ttl_unit">
+            <option value="m" {{ 'selected' if form.ttl_unit == 'm' }}>минут</option>
+            <option value="h" {{ 'selected' if form.ttl_unit == 'h' }}>часов</option>
+            <option value="d" {{ 'selected' if form.ttl_unit == 'd' }}>дней</option>
+          </select>
+        </label>
+      </div>
+      <label class="check"><input type="checkbox" name="share_enabled" {{ 'checked' if form.share_enabled }}> Создать публичную ссылку на результат</label>
+    </div>
+    <div class="hint" data-mode="now">Результат запуска «Сейчас» в любом случае можно посмотреть и скачать: если хранение не включено, он хранится {{ settings.default_result_ttl_minutes | ttl }}</div>
+  </section>
+
+  <div class="buttons">
+    <span data-mode="now">
+      <button class="btn btn-primary" name="action" value="run">▶ Выполнить</button>
+      <button class="btn" name="action" value="download">⬇ Выполнить и скачать</button>
+      <button class="btn" name="action" value="save">Только сохранить</button>
+    </span>
+    <span data-mode="once"><button class="btn btn-primary" name="action" value="save">Запланировать</button></span>
+    <span data-mode="cron"><button class="btn btn-primary" name="action" value="save">Сохранить расписание</button></span>
+    <a class="btn btn-link" href="{{ '/tasks/%d' % task.id if task else '/' }}">Отмена</a>
+  </div>
+</form>
+{% endblock %}
+{% block scripts %}<script>initTaskForm();</script>{% endblock %}

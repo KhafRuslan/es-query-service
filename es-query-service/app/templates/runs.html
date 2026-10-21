@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% from "_macros.html" import run_row, run_head %}
+{% block content %}
+<h1>{{ 'Сохранённые результаты' if stored else 'Запуски' }}</h1>
+{% if runs %}
+<div class="table-wrap">
+<table>
+  <thead>{{ run_head(true) }}</thead>
+  <tbody>{% for r in runs %}{{ run_row(r, true, names) }}{% endfor %}</tbody>
+</table>
+</div>
+{% else %}<p class="muted">Пусто.</p>{% endif %}
+{% endblock %}

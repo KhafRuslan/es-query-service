@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Роли · ES Query Service{% endblock %}
+{% block content %}
+{% include "admin/_nav.html" %}
+{% if msg == 'saved' %}<div class="alert ok">Роль сохранена</div>{% endif %}
+{% if msg == 'deleted' %}<div class="alert ok">Роль удалена</div>{% endif %}
+<div class="title-row">
+  <h1>Роли</h1>
+  <div class="actions"><a class="btn btn-primary" href="/admin/roles/new">+ Добавить роль</a></div>
+</div>
+<p class="hint">Роль — это набор ключей доступа. Пользователь с ролью видит только кластеры этих ключей и может выполнять запросы только с ними.</p>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Роль</th><th>Описание</th><th>Ключи доступа</th><th>Пользователи</th><th></th></tr></thead>
+  <tbody>
+  {% for r in roles %}
+    <tr>
+      <td><a href="/admin/roles/{{ r.id }}">{{ r.name }}</a></td>
+      <td>{{ r.description or '—' }}</td>
+      <td>{% for k in r.keys %}<span class="chip">{{ k.label }}</span>{% else %}<span class="muted">нет</span>{% endfor %}</td>
+      <td>{% for u in r.users %}<a class="chip" href="/admin/users/{{ u.id }}">{{ u.username }}</a>{% else %}<span class="muted">нет</span>{% endfor %}</td>
+      <td class="actions">
+        <a class="btn btn-sm" href="/admin/roles/{{ r.id }}">Изменить</a>
+        <form method="post" action="/admin/roles/{{ r.id }}/delete" onsubmit="return confirm('Удалить роль «{{ r.name }}»? Пользователи потеряют доступ к её ключам.')"><button class="btn btn-sm btn-danger">Удалить</button></form>
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="5" class="muted">Ролей пока нет</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

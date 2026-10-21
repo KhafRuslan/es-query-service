@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}{{ role.name if role else 'Новая роль' }} · ES Query Service{% endblock %}
+{% block content %}
+{% include "admin/_nav.html" %}
+<div class="narrow">
+<h1>{% if role %}Роль «{{ role.name }}»{% else %}Новая роль{% endif %}</h1>
+{% if error %}<div class="alert err">{{ error }}</div>{% endif %}
+<form method="post" action="{{ '/admin/roles/%d' % role.id if role else '/admin/roles' }}" class="form card">
+  <label>Название <input name="name" value="{{ form.name }}" required maxlength="100" placeholder="Например: аналитики-logs"></label>
+  <label>Описание <input name="description" value="{{ form.description }}"></label>
+
+  <h2 class="mt">Ключи доступа</h2>
+  <p class="hint">Пользователи с этой ролью смогут выполнять запросы только с отмеченными ключами (и видеть только их кластеры).</p>
+  {% for c in clusters %}
+    <fieldset class="group">
+      <legend>{{ c.name }} <span class="muted">{{ c.url }}</span></legend>
+      {% for k in c.keys %}
+        <label class="check"><input type="checkbox" name="key_ids" value="{{ k.id }}" {{ 'checked' if k.id in form.key_ids }}> {{ k.name }}{% if not k.api_key %} <span class="muted">(без авторизации)</span>{% endif %}</label>
+      {% else %}
+        <p class="muted">У кластера нет ключей</p>
+      {% endfor %}
+    </fieldset>
+  {% else %}
+    <p class="muted">Кластеров пока нет — <a href="/admin/clusters/new">добавьте кластер</a>.</p>
+  {% endfor %}
+
+  <h2 class="mt">Пользователи</h2>
+  {% for u in users %}
+    <label class="check"><input type="checkbox" name="user_ids" value="{{ u.id }}" {{ 'checked' if u.id in form.user_ids }}> {{ u.username }}{% if u.display_name %} <span class="muted">— {{ u.display_name }}</span>{% endif %}{% if u.is_admin %} <span class="chip">админ</span>{% endif %}</label>
+  {% endfor %}
+
+  <div class="buttons">
+    <button class="btn btn-primary">Сохранить</button>
+    <a class="btn btn-link" href="/admin/roles">Отмена</a>
+  </div>
+</form>
+</div>
+{% endblock %}

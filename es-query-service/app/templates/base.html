@@ -1,0 +1,76 @@
+{% from "_icons.html" import icon -%}
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}ES Query Service{% endblock %}</title>
+  <script>
+    // Тема и состояние меню применяются до отрисовки, чтобы не было мигания
+    try {
+      var t = localStorage.getItem("theme");
+      if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+      if (localStorage.getItem("sidebar") === "collapsed") document.documentElement.classList.add("sidebar-collapsed");
+    } catch (e) {}
+  </script>
+  <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}?v={{ static_version }}">
+</head>
+<body>
+{% if user %}
+{% set path = request.url.path %}
+{% set stored = request.query_params.get('stored') %}
+<div class="app">
+  <aside class="sidebar" id="sidebar">
+    <a class="logo" href="/" title="ES Query Service">
+      <span class="logo-mark">ES</span>
+      <span class="logo-text">Query Service</span>
+    </a>
+    <nav class="side-nav">
+      <a class="side-btn primary {{ 'active' if path == '/tasks/new' }}" href="/tasks/new" title="Новый запрос">{{ icon('plus') }}<span class="side-label">Новый запрос</span></a>
+      {% if user.is_admin %}
+      <a class="side-btn {{ 'active' if path.startswith('/admin') }}" href="/admin/users" title="Управление">{{ icon('settings') }}<span class="side-label">Управление</span></a>
+      {% endif %}
+      <a class="side-btn {{ 'active' if path == '/' or (path.startswith('/tasks/') and path != '/tasks/new') }}" href="/" title="Задачи">{{ icon('list') }}<span class="side-label">Задачи</span></a>
+      <a class="side-btn {{ 'active' if path.startswith('/runs') and not stored }}" href="/runs" title="Запуски">{{ icon('activity') }}<span class="side-label">Запуски</span></a>
+      <a class="side-btn {{ 'active' if path == '/runs' and stored }}" href="/runs?stored=1" title="Сохранённые результаты">{{ icon('archive') }}<span class="side-label">Сохранённые результаты</span></a>
+    </nav>
+    <button type="button" class="side-btn collapse-btn" id="collapse-btn" title="Свернуть меню">{{ icon('collapse') }}<span class="side-label">Свернуть</span></button>
+  </aside>
+  <div class="backdrop" id="backdrop"></div>
+
+  <div class="main-col">
+    <header class="topbar">
+      <button type="button" class="top-btn icon-only menu-toggle" id="menu-toggle" title="Меню">{{ icon('menu') }}</button>
+      <div class="top-actions">
+        <div class="dropdown" id="clusters-dropdown">
+          <button type="button" class="top-btn" id="es-status" aria-haspopup="true" aria-expanded="false">
+            <span class="dot" id="es-dot"></span>{{ icon('server', 16) }}<span id="es-label">Кластеры…</span>{{ icon('chevron', 14) }}
+          </button>
+          <div class="dropdown-menu" id="clusters-menu" hidden>
+            <div class="dropdown-title">Состояние кластеров</div>
+            <div id="clusters-list" class="muted">Проверка…</div>
+            {% if user.is_admin %}<a class="dropdown-link" href="/admin/clusters">Управление кластерами →</a>{% endif %}
+          </div>
+        </div>
+        <button type="button" class="top-btn icon-only" id="theme-toggle" title="Тема">
+          <span data-theme-icon="auto">{{ icon('auto', 16) }}</span><span data-theme-icon="dark" hidden>{{ icon('moon', 16) }}</span><span data-theme-icon="light" hidden>{{ icon('sun', 16) }}</span>
+        </button>
+        <a class="top-btn {{ 'active' if path == '/account' }}" href="/account" title="Личный кабинет">{{ icon('user', 16) }}<span class="top-label">{{ user.title }}</span>{% if user.is_admin %}<span class="chip">админ</span>{% endif %}</a>
+        <form method="post" action="/logout"><button class="top-btn" title="Выйти">{{ icon('logout', 16) }}<span class="top-label">Выйти</span></button></form>
+      </div>
+    </header>
+    <main>
+    {% block content %}{% endblock %}
+    </main>
+    <footer>Часовой пояс: {{ settings.timezone }}{% if settings.es_read_only %} · режим только-чтение{% endif %}</footer>
+  </div>
+</div>
+{% else %}
+<main class="auth-main">
+{{ self.content() }}
+</main>
+{% endif %}
+<script src="{{ url_for('static', path='app.js') }}?v={{ static_version }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Пользователи · ES Query Service{% endblock %}
+{% block content %}
+{% include "admin/_nav.html" %}
+{% set messages = {'saved': ('ok', 'Пользователь сохранён'), 'deleted': ('ok', 'Пользователь удалён'),
+                   'self': ('err', 'Нельзя удалить самого себя'), 'last_admin': ('err', 'Нельзя удалить последнего активного администратора')} %}
+{% if msg in messages %}<div class="alert {{ messages[msg][0] }}">{{ messages[msg][1] }}</div>{% endif %}
+
+<div class="title-row">
+  <h1>Пользователи</h1>
+  <div class="actions"><a class="btn btn-primary" href="/admin/users/new">+ Добавить пользователя</a></div>
+</div>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Логин</th><th>Имя</th><th>Права</th><th>Роли</th><th>Задач</th><th>Последний вход</th><th>Статус</th><th></th></tr></thead>
+  <tbody>
+  {% for u in users %}
+    <tr>
+      <td><a href="/admin/users/{{ u.id }}">{{ u.username }}</a>{% if u.id == user.id %} <span class="muted">(вы)</span>{% endif %}</td>
+      <td>{{ u.display_name or '—' }}</td>
+      <td>{{ 'администратор' if u.is_admin else 'пользователь' }}</td>
+      <td>{% for r in u.roles %}<a class="chip" href="/admin/roles/{{ r.id }}">{{ r.name }}</a>{% else %}<span class="muted">—</span>{% endfor %}</td>
+      <td>{{ tasks.get(u.id, 0) }}</td>
+      <td>{{ u.last_login_at | dt }}</td>
+      <td>{% if u.is_active %}<span class="badge ok">активен</span>{% else %}<span class="badge err">заблокирован</span>{% endif %}</td>
+      <td class="actions">
+        <a class="btn btn-sm" href="/admin/users/{{ u.id }}">Изменить</a>
+        {% if u.id != user.id %}
+        <form method="post" action="/admin/users/{{ u.id }}/delete" onsubmit="return confirm('Удалить пользователя {{ u.username }}? Его задачи останутся без владельца и перестанут выполняться по расписанию.')"><button class="btn btn-sm btn-danger">Удалить</button></form>
+        {% endif %}
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

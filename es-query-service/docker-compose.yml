@@ -1,0 +1,19 @@
+services:
+  es-query-service:
+    build: .
+    # Сеть хоста: сервис обращается к Elasticsearch и webhook-адресам так же, как сама машина
+    # (localhost — это хост), и слушает порт 8000 прямо на хосте
+    network_mode: host
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      TIMEZONE: ${TIMEZONE:-Europe/Moscow}
+    volumes:
+      - service-data:/data
+    restart: unless-stopped
+
+volumes:
+  service-data:
+    # Имя закреплено: том создан, когда сервис лежал в /opt/service (проект compose «service»)
+    name: service_service-data

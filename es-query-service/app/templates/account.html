@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Личный кабинет · ES Query Service{% endblock %}
+{% block content %}
+<h1>{{ user.title }} <small>{{ user.username }}</small></h1>
+{% if msg == 'password' %}<div class="alert ok">Пароль изменён. Сессии на других устройствах завершены.</div>{% endif %}
+{% if error %}<div class="alert err">{{ error }}</div>{% endif %}
+
+<div class="grid2">
+  <section class="card">
+    <h2>Доступ</h2>
+    <dl>
+      <dt>Права</dt><dd>{{ 'администратор' if user.is_admin else 'пользователь' }}</dd>
+      <dt>Роли</dt><dd>{% for r in user.roles %}<span class="chip">{{ r.name }}</span>{% else %}<span class="muted">нет</span>{% endfor %}</dd>
+    </dl>
+    <h2 class="mt">Доступные кластеры и ключи</h2>
+    {% if unrestricted %}<p class="hint">Администратору доступны все кластеры и ключи.</p>{% endif %}
+    {% if keys %}
+      <ul class="plain">{% for k in keys %}<li><b>{{ k.cluster.name }}</b> / {{ k.name }} <span class="muted">{{ k.cluster.url }}</span></li>{% endfor %}</ul>
+    {% else %}
+      <p class="muted">Нет доступных ключей — обратитесь к администратору, чтобы он выдал вам роль.</p>
+    {% endif %}
+  </section>
+  <section class="card">
+    <h2>Смена пароля</h2>
+    <form method="post" action="/account/password" class="form" autocomplete="off">
+      <label>Текущий пароль <input name="current_password" type="password" autocomplete="current-password" required></label>
+      <label>Новый пароль <input name="new_password" type="password" autocomplete="new-password" minlength="8" required></label>
+      <label>Новый пароль ещё раз <input name="new_password2" type="password" autocomplete="new-password" minlength="8" required></label>
+      <button class="btn btn-primary">Изменить пароль</button>
+    </form>
+  </section>
+</div>
+{% endblock %}

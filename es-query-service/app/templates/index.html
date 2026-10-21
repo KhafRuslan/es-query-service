@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% from "_macros.html" import status_badge, kind_badge, complexity_badge, level_class %}
+{% from "_icons.html" import icon %}
+{% block content %}
+<h1>Задачи</h1>
+
+{% if stats.total %}
+<section class="stats">
+  <a class="stat" href="/">
+    <div class="stat-label">Всего задач</div>
+    <div class="stat-value">{{ stats.total }}</div>
+  </a>
+  <div class="stat">
+    <div class="stat-label">Активных расписаний</div>
+    <div class="stat-value">{{ stats.scheduled }}</div>
+    <div class="stat-sub">отложенные и cron</div>
+  </div>
+  <a class="stat" href="/runs">
+    <div class="stat-label">Ошибок за 24 часа</div>
+    <div class="stat-value {{ 'err-text' if stats.errors_24h }}">{{ stats.errors_24h }}</div>
+    <div class="stat-sub">{{ 'см. запуски' if stats.errors_24h else 'всё в порядке' }}</div>
+  </a>
+  {% if stats.next %}
+  <a class="stat" href="/tasks/{{ stats.next[1].id }}">
+    <div class="stat-label">Ближайший запуск</div>
+    <div class="stat-value stat-value-sm">{{ stats.next[0] | dt }}</div>
+    <div class="stat-sub">{{ stats.next[1].name | truncate(40) }}</div>
+  </a>
+  {% else %}
+  <div class="stat">
+    <div class="stat-label">Ближайший запуск</div>
+    <div class="stat-value stat-value-sm muted">—</div>
+    <div class="stat-sub">нет запланированных</div>
+  </div>
+  {% endif %}
+</section>
+
+<div class="list-toolbar">
+  <nav class="tabs">
+    <a href="/" class="{{ 'active' if not kind }}">Все <span class="muted">{{ kind_counts.values() | sum }}</span></a>
+    {% for k, label in KIND_LABELS.items() if kind_counts.get(k) %}
+    <a href="/?kind={{ k }}" class="{{ 'active' if kind == k }}">{{ label }} <span class="muted">{{ kind_counts[k] }}</span></a>
+    {% endfor %}
+  </nav>
+  <label class="search">
+    {{ icon('search', 16) }}
+    <input type="search" id="task-search" placeholder="Поиск задач  ( / )" autocomplete="off"
+           title="Ищет по названию, запросу, типу, кластеру, ключу и автору. Клавиша / — перейти к поиску">
+  </label>
+</div>
+{% endif %}
+
+{% if not tasks %}
+  <div class="empty">
+    {% if not has_keys %}
+    <p>Нет доступных кластеров: вам не выдана роль с ключами доступа.</p>
+    <p class="muted">Обратитесь к администратору сервиса.</p>
+    {% elif kind %}
+    <p>Задач этого типа нет.</p>
+    {% else %}
+    <p>Запросов пока нет.</p>
+    <a class="btn btn-primary" href="/tasks/new">Создать первый запрос</a>
+    {% endif %}
+  </div>
+{% else %}
+<section class="task-list" id="task-list">
+  {% for t in tasks %}
+    {% set last = last_runs.get(t.id) %}
+    {% set k = kinds[t.id] %}
+    <a class="task-row" href="/tasks/{{ t.id }}"
+       data-search="{{ [t.name, t.path, t.method, KIND_LABELS[k], t.key.cluster.name if t.key else '', t.key.name if t.key else '', t.owner.title if t.owner else ''] | join(' ') | lower }}">
+      <div class="task-main">
+        <div class="task-name">
+          {{ t.name }} {{ kind_badge(k) }}
+          {% if not t.enabled and t.mode != MODE_NOW %}<span class="chip">{{ 'выполнена' if t.mode == MODE_ONCE else 'пауза' }}</span>{% endif %}
+        </div>
+        <div class="task-meta">
+          {% if t.key %}{{ t.key.cluster.name }} / {{ t.key.name }}{% else %}<span class="err-text">кластер не задан</span>{% endif %}
+          · {{ t.owner.title if t.owner else 'без автора' }}
+          · <code>{{ t.method }} {{ t.path | truncate(60) }}</code>
+        </div>
+      </div>
+      <div class="task-status">
+        <div class="cell-label">Статус</div>
+        {% if last %}{{ status_badge(last) }}{% else %}<span class="muted">не запускалась</span>{% endif %}
+      </div>
+      <div class="task-perf">
+        {%- if k == 'search' %}
+          {% set p = profiles.get(t.id) %}
+          {% set took = avg_took.get(t.id) or (p.took_ms if p and p.status == 'done' else none) %}
+          <div class="cell-label">Скорость · сложность</div>
+          {% if took is not none %}<span class="{{ level_class(speed_level(took)) }}-text" title="Средний took по успешным запускам">{{ took | round | int }} мс</span>{% else %}<span class="muted">—</span>{% endif %}
+          · {{ complexity_badge(p) }}
+        {% endif -%}
+      </div>
+      <div class="task-date">
+        <div class="cell-label">Последний запуск</div>
+        {% if last %}{{ last.started_at | dt }}{% else %}<span class="muted">—</span>{% endif %}
+      </div>
+    </a>
+  {% endfor %}
+  <p class="muted empty-search" id="search-empty" hidden>Ничего не найдено</p>
+</section>
+{% endif %}
+{% endblock %}
+{% block scripts %}<script>initTaskSearch();</script>{% endblock %}

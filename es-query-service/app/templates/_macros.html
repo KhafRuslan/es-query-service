@@ -1,0 +1,66 @@
+{% macro status_badge(run) -%}
+  {%- if run is none -%}<span class="muted">—</span>
+  {%- elif run.status == 'success' -%}<span class="badge ok">успешно</span>
+  {%- elif run.status == 'running' -%}<span class="badge run">выполняется</span>
+  {%- else -%}<span class="badge err">ошибка</span>
+  {%- endif -%}
+{%- endmacro %}
+
+{% macro trigger_label(t) -%}
+  {{ {'manual': 'вручную', 'once': 'отложенный', 'cron': 'по расписанию', 'webhook': 'вебхук'}.get(t, t) }}
+{%- endmacro %}
+
+{% macro mode_label(task) -%}
+  {%- if task.mode == MODE_ONCE -%}Отложенно: {{ task.run_at | dt }}
+  {%- elif task.mode == MODE_CRON -%}Cron: <code>{{ task.cron }}</code>
+  {%- else -%}Вручную
+  {%- endif -%}
+{%- endmacro %}
+
+{% macro delivery(task) -%}
+  {%- if task.webhook_url %}<span class="chip" title="{{ task.webhook_url }}">webhook</span>{% endif -%}
+  {%- if task.store_result %}<span class="chip">хранение {{ task.store_ttl_minutes | ttl }}</span>{% endif -%}
+  {%- if task.share_result %}<span class="chip">ссылка</span>{% endif -%}
+  {%- if not task.webhook_url and not task.store_result %}<span class="muted">просмотр / скачивание</span>{% endif -%}
+{%- endmacro %}
+
+{% macro run_row(run, show_task=false, names=none) %}
+<tr>
+  <td><a href="/runs/{{ run.id }}">#{{ run.id }}</a></td>
+  {% if show_task %}<td><a href="/tasks/{{ run.task_id }}">{{ names.get(run.task_id, run.task_id) }}</a></td><td>{{ run.cluster_name or '—' }}</td>{% endif %}
+  <td>{{ run.started_at | dt }}</td>
+  <td>{{ trigger_label(run.trigger) }}</td>
+  <td>{{ run.user_name or '—' }}</td>
+  <td>{{ status_badge(run) }}{% if run.es_status %} <span class="muted">HTTP {{ run.es_status }}</span>{% endif %}</td>
+  <td>{{ run.duration_ms | duration }}</td>
+  <td>{{ run.result_size | size }}</td>
+  <td>
+    {%- if run.result_file -%}до {{ run.expires_at | dt }}{% if run.share_token %} <span class="chip">ссылка</span>{% endif %}
+    {%- else -%}<span class="muted">не хранится</span>{%- endif -%}
+  </td>
+  <td>{% if run.webhook_status %}<span class="{{ 'ok-text' if run.webhook_status.startswith('OK') else 'err-text' }}" title="{{ run.webhook_status }}">{{ run.webhook_status | truncate(30) }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+  <td>{% if run.result_file %}<a href="/runs/{{ run.id }}/download">скачать</a>{% endif %}</td>
+</tr>
+{% endmacro %}
+
+{% macro run_head(show_task=false) %}
+<tr><th>#</th>{% if show_task %}<th>Задача</th><th>Кластер</th>{% endif %}<th>Начало</th><th>Запуск</th><th>Пользователь</th><th>Статус</th><th>Длительность</th><th>Размер</th><th>Хранение</th><th>Webhook</th><th></th></tr>
+{% endmacro %}
+
+{% macro kind_badge(kind) -%}
+  <span class="kind kind-{{ kind }}">{{ KIND_LABELS[kind] }}</span>
+{%- endmacro %}
+
+{% macro level_class(level) -%}
+  {{ {'низкая': 'ok', 'быстрый': 'ok', 'средняя': 'run', 'нормальный': 'run', 'высокая': 'err', 'медленный': 'err',
+      'очень высокая': 'err', 'очень медленный': 'err'}.get(level, '') }}
+{%- endmacro %}
+
+{% macro complexity_badge(profile) -%}
+  {%- if profile is none -%}<span class="muted">—</span>
+  {%- elif profile.status == 'done' -%}<span class="badge {{ level_class(profile.complexity_level) }}" title="Оценка {{ profile.complexity_score }} из 100">{{ profile.complexity_level }} · {{ profile.complexity_score }}</span>
+  {%- elif profile.status == 'running' -%}<span class="badge run">профилирование…</span>
+  {%- elif profile.status == 'unsupported' -%}<span class="muted" title="Profile API не поддерживается для этого эндпоинта">н/д</span>
+  {%- else -%}<span class="badge err" title="{{ profile.error }}">ошибка профиля</span>
+  {%- endif -%}
+{%- endmacro %}

@@ -1,0 +1,4 @@
+{% if error %}<div class="alert err">{{ error }}</div>{% endif %}
+{% if info %}
+  <div class="alert ok">Подключение успешно: кластер <b>{{ info.cluster_name }}</b>, версия {{ info.version.number }}{% if info.version.distribution %} ({{ info.version.distribution }}){% endif %}</div>
+{% endif %}

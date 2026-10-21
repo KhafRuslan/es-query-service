@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}{{ target.username if target else 'Новый пользователь' }} · ES Query Service{% endblock %}
+{% block content %}
+{% include "admin/_nav.html" %}
+<div class="narrow">
+<h1>{% if target %}Пользователь {{ target.username }}{% else %}Новый пользователь{% endif %}</h1>
+{% if error %}<div class="alert err">{{ error }}</div>{% endif %}
+<form method="post" action="{{ '/admin/users/%d' % target.id if target else '/admin/users' }}" class="form card" autocomplete="off">
+  <label>Логин <input name="username" value="{{ form.username }}" required maxlength="64"></label>
+  <label>Имя (как показывать в истории) <input name="display_name" value="{{ form.display_name }}" maxlength="200" placeholder="Иван Петров"></label>
+  <label>{{ 'Новый пароль (оставьте пустым, чтобы не менять)' if target else 'Пароль' }}
+    <input name="password" type="password" autocomplete="new-password" {{ '' if target else 'required' }} minlength="8">
+  </label>
+  <label>Пароль ещё раз <input name="password2" type="password" autocomplete="new-password" minlength="8"></label>
+
+  <h2 class="mt">Роли</h2>
+  {% for r in roles %}
+    <label class="check"><input type="checkbox" name="role_ids" value="{{ r.id }}" {{ 'checked' if r.id in form.role_ids }}>
+      <b>{{ r.name }}</b>{% if r.description %} — <span class="muted">{{ r.description }}</span>{% endif %}
+      <span class="hint">{% for k in r.keys %}{{ k.label }}{{ ', ' if not loop.last }}{% else %}нет ключей{% endfor %}</span>
+    </label>
+  {% else %}
+    <p class="muted">Ролей пока нет — <a href="/admin/roles/new">создайте роль</a>, чтобы выдать доступ к кластерам.</p>
+  {% endfor %}
+
+  <h2 class="mt">Права</h2>
+  <label class="check"><input type="checkbox" name="is_admin" {{ 'checked' if form.is_admin }}> Администратор — доступ ко всем кластерам, ключам и задачам, управление пользователями и ролями</label>
+  <label class="check"><input type="checkbox" name="is_active" {{ 'checked' if form.is_active }}> Учётная запись активна (заблокированный пользователь не может войти, его задачи по расписанию не выполняются)</label>
+
+  <div class="buttons">
+    <button class="btn btn-primary">Сохранить</button>
+    <a class="btn btn-link" href="/admin/users">Отмена</a>
+  </div>
+</form>
+</div>
+{% endblock %}

@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% from "_macros.html" import status_badge, trigger_label %}
+{% block title %}Запуск #{{ run.id }} · ES Query Service{% endblock %}
+{% block content %}
+<div class="title-row">
+  <h1>Запуск #{{ run.id }} <small>задачи <a href="/tasks/{{ task.id }}">{{ task.name }}</a></small></h1>
+  <div class="actions">
+    <form method="post" action="/tasks/{{ task.id }}/run"><button class="btn">↻ Выполнить снова</button></form>
+    {% if run.result_file %}<a class="btn btn-primary" href="/runs/{{ run.id }}/download">⬇ Скачать JSON</a>{% endif %}
+  </div>
+</div>
+
+<div class="grid2">
+  <section class="card">
+    <h2>Выполнение</h2>
+    <dl>
+      <dt>Статус</dt><dd id="run-status" data-status="{{ run.status }}">{{ status_badge(run) }}{% if run.es_status %} <span class="muted">HTTP {{ run.es_status }}</span>{% endif %}</dd>
+      {% if run.cluster_name %}<dt>Кластер / ключ</dt><dd>{{ run.cluster_name }}{% if run.key_name %} / {{ run.key_name }}{% endif %}</dd>{% endif %}
+      <dt>Запуск</dt><dd>{{ trigger_label(run.trigger) }}</dd>
+      <dt>Пользователь</dt><dd>{{ run.user_name or '—' }}{% if run.trigger != 'manual' and run.user_name %} <span class="hint">(владелец задачи)</span>{% endif %}</dd>
+      {% if run.client_ip %}<dt>Вызвано с адреса</dt><dd><code>{{ run.client_ip }}</code></dd>{% endif %}
+      <dt>Начало</dt><dd>{{ run.started_at | dt }}</dd>
+      <dt>Длительность</dt><dd>{{ run.duration_ms | duration }}</dd>
+      <dt>Размер ответа</dt><dd>{{ run.result_size | size }}</dd>
+      {% for k, v in summary %}<dt>{{ k }}</dt><dd>{{ v }}</dd>{% endfor %}
+      {% if run.webhook_status %}<dt>Webhook</dt><dd class="{{ 'ok-text' if run.webhook_status.startswith('OK') else 'err-text' }}">{{ run.webhook_status }}</dd>{% endif %}
+    </dl>
+    {% if run.error %}<div class="alert err"><pre class="wrap">{{ run.error }}</pre></div>{% endif %}
+  </section>
+
+  <section class="card">
+    <h2>Хранение и доступ</h2>
+    {% if run.result_file %}
+      <p>Результат хранится до <b>{{ run.expires_at | dt }}</b></p>
+      <form method="post" action="/runs/{{ run.id }}/ttl" class="row">
+        <label class="w-auto">Хранить ещё <input type="number" name="ttl_value" value="1" min="1" class="num"></label>
+        <label class="w-auto">&nbsp;
+          <select name="ttl_unit"><option value="h">часов</option><option value="d" selected>дней</option></select>
+        </label>
+        <label class="w-auto">&nbsp;<button class="btn btn-sm">Установить срок</button></label>
+      </form>
+      {% if share %}
+        <label>Публичная ссылка (доступна без авторизации до окончания срока хранения)
+          <div class="row">
+            <input id="share-url" value="{{ share }}" readonly class="grow mono">
+            <button type="button" class="btn btn-sm" data-copy="#share-url">Копировать</button>
+          </div>
+        </label>
+        <p class="hint">Скачать файлом: <a href="{{ share }}?download=1">{{ share }}?download=1</a></p>
+        <form method="post" action="/runs/{{ run.id }}/unshare"><button class="btn btn-sm">Отозвать ссылку</button></form>
+      {% else %}
+        <form method="post" action="/runs/{{ run.id }}/share"><button class="btn btn-sm btn-primary">Создать публичную ссылку</button></form>
+      {% endif %}
+      <form method="post" action="/runs/{{ run.id }}/delete-result" onsubmit="return confirm('Удалить сохранённый результат?')" class="mt">
+        <button class="btn btn-sm btn-danger">Удалить результат</button>
+      </form>
+    {% elif run.status == 'running' %}
+      <p class="muted">Запрос выполняется…</p>
+    {% else %}
+      <p class="muted">Результат не сохранён или срок хранения истёк.</p>
+    {% endif %}
+  </section>
+</div>
+
+{% if preview is not none %}
+<h2>Ответ{% if truncated %} <span class="muted">(показаны первые {{ settings.preview_max_kb }} КБ — скачайте файл целиком)</span>{% endif %}</h2>
+<pre class="code result">{{ preview }}</pre>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+{% if run.status == 'running' or (run.webhook_status and run.webhook_status.startswith('Отправ')) %}
+<script>pollRun({{ run.id }});</script>
+{% endif %}
+{% endblock %}

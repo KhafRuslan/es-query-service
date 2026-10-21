@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}{{ cluster.name if cluster else "Новый кластер" }} · ES Query Service{% endblock %}
+{% block content %}
+{% if not first_run %}{% include "admin/_nav.html" %}{% endif %}
+{% set messages = {'saved': ('ok', 'Кластер сохранён'), 'key_saved': ('ok', 'Ключ сохранён'), 'key_deleted': ('ok', 'Ключ удалён'),
+                   'key_busy': ('err', 'Ключ используется в задачах — сначала переключите их на другой ключ')} %}
+{% if msg in messages %}<div class="alert {{ messages[msg][0] }}">{{ messages[msg][1] }}</div>{% endif %}
+
+<div class="narrow">
+<h1>{% if first_run %}Подключение к Elasticsearch{% elif cluster %}Кластер «{{ cluster.name }}»{% else %}Новый кластер{% endif %}</h1>
+{% if first_run %}
+  <p class="muted">Добавьте кластер, к которому сервис будет выполнять запросы. Позже можно добавить другие кластеры и ключи доступа в разделе «Администрирование».</p>
+{% endif %}
+{% include "admin/_check_result.html" %}
+
+<form method="post" action="{{ '/admin/clusters/%d' % cluster.id if cluster else '/admin/clusters' }}" class="form card" autocomplete="off">
+  <label>Название
+    <input name="name" value="{{ form.name }}" maxlength="100" placeholder="Например: prod, logs-dc2">
+  </label>
+  <label>Адрес кластера
+    <input name="url" value="{{ form.url }}" required placeholder="https://es.example.com:9200">
+  </label>
+
+  {% if not cluster %}
+    <fieldset class="group">
+      <legend>Первый ключ доступа</legend>
+      <label>Название ключа <input name="key_name" value="{{ form.key_name }}" maxlength="100"></label>
+      <label>API-ключ
+        <input name="api_key" type="password" autocomplete="new-password"
+               placeholder="{{ 'задан в ES_API_KEY — оставьте пустым, чтобы использовать его' if has_env_key else 'пусто — без авторизации' }}">
+      </label>
+      <div class="hint">Значение <i>encoded</i> из Kibana (Stack Management → API keys) или пара <code>id:api_key</code>. Другие ключи можно добавить после сохранения.</div>
+    </fieldset>
+  {% endif %}
+
+  <label class="check"><input type="checkbox" name="skip_tls" {{ 'checked' if form.skip_tls }}> Не проверять TLS-сертификат (self-signed, внутренний CA)</label>
+  <div class="hint">Отключайте проверку только во внутренней сети: соединение останется зашифрованным, но подлинность сервера проверяться не будет.</div>
+
+  {% if not first_run %}
+    {% if cluster and cluster.is_default %}
+      <p class="hint">Это кластер по умолчанию.</p>
+    {% else %}
+      <label class="check"><input type="checkbox" name="is_default" {{ 'checked' if form.is_default }}> Кластер по умолчанию (подставляется в новые запросы)</label>
+    {% endif %}
+  {% endif %}
+
+  <div class="buttons">
+    <button class="btn btn-primary" name="action" value="save">Сохранить</button>
+    <button class="btn" name="action" value="test">Проверить подключение</button>
+    {% if allow_nocheck %}<button class="btn btn-danger" name="action" value="save_nocheck">Сохранить без проверки</button>{% endif %}
+    {% if not first_run %}<a class="btn btn-link" href="/admin/clusters">Отмена</a>{% endif %}
+  </div>
+</form>
+</div>
+
+{% if cluster %}
+<div class="title-row mt">
+  <h2>Ключи доступа</h2>
+  <div class="actions"><a class="btn btn-primary btn-sm" href="/admin/clusters/{{ cluster.id }}/keys/new">+ Добавить ключ</a></div>
+</div>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Ключ</th><th>Авторизация</th><th>Состояние</th><th>Роли</th><th>Задач</th><th></th></tr></thead>
+  <tbody>
+  {% for k in cluster.keys %}
+    <tr>
+      <td><a href="/admin/clusters/{{ cluster.id }}/keys/{{ k.id }}">{{ k.name }}</a></td>
+      <td>{{ 'API-ключ' if k.api_key else 'без авторизации' }}</td>
+      <td><span class="badge" data-key-status="{{ k.id }}">проверка…</span></td>
+      <td>{% for r in roles_by_key.get(k.id, []) %}<span class="chip">{{ r }}</span>{% else %}<span class="muted">ни в одной роли</span>{% endfor %}</td>
+      <td>{{ usage.get(k.id, 0) }}</td>
+      <td class="actions">
+        <a class="btn btn-sm" href="/admin/clusters/{{ cluster.id }}/keys/{{ k.id }}">Изменить</a>
+        <form method="post" action="/admin/clusters/{{ cluster.id }}/keys/{{ k.id }}/delete" onsubmit="return confirm('Удалить ключ «{{ k.name }}»?')"><button class="btn btn-sm btn-danger" {{ 'disabled title="Ключ используется в задачах"' | safe if usage.get(k.id) }}>Удалить</button></form>
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="6" class="muted">Ключей нет — добавьте ключ, чтобы выполнять запросы к кластеру</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+{% endblock %}

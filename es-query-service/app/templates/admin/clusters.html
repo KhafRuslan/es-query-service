@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Кластеры · ES Query Service{% endblock %}
+{% block content %}
+{% include "admin/_nav.html" %}
+{% if msg == 'saved' %}<div class="alert ok">Кластер сохранён</div>{% endif %}
+{% if msg == 'deleted' %}<div class="alert ok">Кластер удалён</div>{% endif %}
+{% if msg == 'busy' %}<div class="alert err">Ключи кластера используются в задачах — сначала переключите задачи на другой кластер или удалите их</div>{% endif %}
+
+<div class="title-row">
+  <h1>Кластеры</h1>
+  <div class="actions"><a class="btn btn-primary" href="/admin/clusters/new">+ Добавить кластер</a></div>
+</div>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Название</th><th>Адрес</th><th>Состояние</th><th>Ключи доступа</th><th>TLS</th><th>Задач</th><th></th></tr></thead>
+  <tbody>
+  {% for c in clusters %}
+    <tr>
+      <td><a href="/admin/clusters/{{ c.id }}">{{ c.name }}</a>{% if c.is_default %} <span class="chip">по умолчанию</span>{% endif %}</td>
+      <td><code>{{ c.url }}</code></td>
+      <td><span class="badge" data-cluster-status="{{ c.id }}">проверка…</span></td>
+      <td>{% for k in c.keys %}<span class="chip">{{ k.name }}</span>{% else %}<span class="err-text">нет</span>{% endfor %}</td>
+      <td>{% if c.verify_tls %}проверяется{% else %}<span class="err-text">не проверяется</span>{% endif %}</td>
+      <td>{{ tasks.get(c.id, 0) }}</td>
+      <td class="actions">
+        <a class="btn btn-sm" href="/admin/clusters/{{ c.id }}">Изменить</a>
+        {% if not c.is_default %}
+        <form method="post" action="/admin/clusters/{{ c.id }}/default"><button class="btn btn-sm">Сделать основным</button></form>
+        {% endif %}
+        <form method="post" action="/admin/clusters/{{ c.id }}/delete" onsubmit="return confirm('Удалить кластер «{{ c.name }}» вместе с его ключами?')"><button class="btn btn-sm btn-danger" {{ 'disabled title="Ключи кластера используются в задачах"' | safe if tasks.get(c.id) }}>Удалить</button></form>
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="7" class="muted">Кластеров пока нет</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+<p class="hint">Кластер по умолчанию подставляется в форму нового запроса. Доступ пользователей к кластерам выдаётся через роли: роль содержит ключи доступа.</p>
+{% endblock %}

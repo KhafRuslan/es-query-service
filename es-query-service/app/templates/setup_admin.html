@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Первый запуск · ES Query Service{% endblock %}
+{% block content %}
+<div class="auth-box">
+  <h1>Создание администратора</h1>
+  <p class="muted">Пользователей ещё нет. Создайте учётную запись администратора: она управляет пользователями, ролями, кластерами и ключами доступа.</p>
+  {% if error %}<div class="alert err">{{ error }}</div>{% endif %}
+  <form method="post" action="/setup/admin" class="form card" autocomplete="off">
+    <label>Логин <input name="username" value="{{ form.username }}" autocomplete="username" required></label>
+    <label>Имя (как показывать в истории) <input name="display_name" value="{{ form.display_name }}" placeholder="Иван Петров"></label>
+    <label>Пароль <input name="password" type="password" autocomplete="new-password" minlength="8" required></label>
+    <label>Пароль ещё раз <input name="password2" type="password" autocomplete="new-password" minlength="8" required></label>
+    <button class="btn btn-primary">Создать и войти</button>
+  </form>
+</div>
+{% endblock %}

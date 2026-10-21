@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Вход · ES Query Service{% endblock %}
+{% block content %}
+<div class="auth-box">
+  <h1>Вход</h1>
+  {% if error %}<div class="alert err">{{ error }}</div>{% endif %}
+  <form method="post" action="/login" class="form card">
+    <input type="hidden" name="next" value="{{ next }}">
+    <label>Логин <input name="username" value="{{ username }}" autocomplete="username" required autofocus></label>
+    <label>Пароль <input name="password" type="password" autocomplete="current-password" required></label>
+    <button class="btn btn-primary">Войти</button>
+  </form>
+</div>
+{% endblock %}

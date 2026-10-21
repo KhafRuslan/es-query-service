@@ -1,0 +1,21 @@
+{# Иконки в стиле Lucide (stroke = currentColor) #}
+{% macro icon(name, size=18) -%}
+<svg class="icon" width="{{ size }}" height="{{ size }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+{%- if name == 'plus' -%}<path d="M12 5v14M5 12h14"/>
+{%- elif name == 'settings' -%}<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/>
+{%- elif name == 'list' -%}<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>
+{%- elif name == 'activity' -%}<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+{%- elif name == 'archive' -%}<rect x="2" y="3" width="20" height="5" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8M10 12h4"/>
+{%- elif name == 'server' -%}<rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><path d="M6 6h.01M6 18h.01"/>
+{%- elif name == 'user' -%}<circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/>
+{%- elif name == 'logout' -%}<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>
+{%- elif name == 'menu' -%}<path d="M3 6h18M3 12h18M3 18h18"/>
+{%- elif name == 'collapse' -%}<path d="m11 17-5-5 5-5M18 17l-5-5 5-5"/>
+{%- elif name == 'search' -%}<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>
+{%- elif name == 'sun' -%}<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>
+{%- elif name == 'moon' -%}<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>
+{%- elif name == 'auto' -%}<circle cx="12" cy="12" r="9"/><path d="M12 3v18a9 9 0 0 0 0-18z" fill="currentColor"/>
+{%- elif name == 'chevron' -%}<path d="m6 9 6 6 6-6"/>
+{%- endif -%}
+</svg>
+{%- endmacro %}
